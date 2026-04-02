@@ -1,0 +1,19 @@
+{
+  "name": "Web - Directory Traversal / Path Traversal",
+  "description": "Detects directory traversal (path traversal) attacks where an attacker attempts to access files outside the web root using ../ sequences. Covers standard, URL-encoded, double-encoded and Unicode variants.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval uri_decoded=urldecode(uri) | eval traversal_match=case( match(uri, \"(\\.\\./|%2e%2e%2f|%252e%252e%252f|%c0%ae%c0%ae)\"), \"Double-dot traversal\", match(uri, \"(etc/passwd|etc/shadow|etc/hosts|proc/self|win.ini|system32)\"), \"Sensitive file access\", match(uri_decoded, \"(\\.\\./.*){2,}\"), \"Multi-level traversal\", match(uri, \"(%00|\\x00)\"), \"Null byte injection\", 1==0, null()) | where isnotnull(traversal_match) | stats count as attempt_count, values(traversal_match) as attack_types, values(uri) as traversal_paths, values(status) as status_codes by src_ip, host | eval severity=\"high\" | eval mitre=\"T1083\" | sort -attempt_count | table src_ip, host, attempt_count, attack_types, traversal_paths, status_codes, severity, mitre",
+  "severity": "high",
+  "category": "scanning",
+  "mitre": ["T1083"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["directory-traversal", "path-traversal", "lfi", "file-access", "web"]
+}

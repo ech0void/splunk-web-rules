@@ -1,0 +1,19 @@
+{
+  "name": "Web - Remote Code Execution (RCE) Attempt",
+  "description": "Detects Remote Code Execution attempts via web requests. Covers command injection in parameters, shell metacharacters, PHP/Python/Perl code injection patterns, and common RCE payloads targeting web applications.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval full_req=lower(uri).\"|\".(if(isnotnull(uri_query), lower(uri_query), \"\")) | eval rce_match=case( match(full_req, \"(;|%3b|%7c|\\|).{0,30}(cat|ls|id|whoami|pwd|wget|curl|bash|sh|nc|python|perl|ruby|php)\"), \"Command injection\", match(full_req, \"(%60|`).*(%60|`)\"), \"Backtick execution\", match(full_req, \"\\$\\(.*\\)\"), \"Shell subshell injection\", match(full_req, \"system\\s*\\(|exec\\s*\\(|passthru\\s*\\(|shell_exec\\s*\\(|popen\\s*\\(\"), \"PHP code injection\", match(full_req, \"(wget|curl).{0,50}(http://|https://|ftp://)\"), \"Download dropper\", match(full_req, \"/bin/(bash|sh|dash)|/usr/bin/(python|perl|ruby)\"), \"Shell path in request\", match(full_req, \"eval\\s*\\(|assert\\s*\\(\"), \"Eval injection\", 1==0, null()) | where isnotnull(rce_match) | stats count as attempt_count, values(rce_match) as attack_types, values(uri) as payloads, values(status) as status_codes by src_ip, host | eval severity=\"critical\" | eval mitre=\"T1059\" | sort -attempt_count | table src_ip, host, attempt_count, attack_types, payloads, status_codes, severity, mitre",
+  "severity": "critical",
+  "category": "rce",
+  "mitre": ["T1059"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/2 * * * *",
+  "earliest_time": "-2m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 900,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["rce", "command-injection", "web", "php", "shell", "critical"]
+}

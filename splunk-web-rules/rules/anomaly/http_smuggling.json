@@ -1,0 +1,19 @@
+{
+  "name": "Web - HTTP Request Smuggling / Malformed Request",
+  "description": "Detects HTTP request smuggling attempts and malformed HTTP requests used to bypass security controls, poison caches, or hijack other users' requests. Looks for conflicting Content-Length/Transfer-Encoding headers and oversized headers from single IPs.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) (status=400 OR status=413 OR status=431 OR status=501) | bucket _time span=5m | stats count as bad_req_count, values(status) as status_codes, dc(uri) as unique_uris, values(method) as methods by src_ip, host, _time | where bad_req_count >= 10 | eval smuggling_indicator=case( like(mvjoin(status_codes,\",\"), \"%400%\") AND bad_req_count >= 20, \"Possible request smuggling - high 400s\", like(mvjoin(status_codes,\",\"), \"%413%\"), \"Oversized payload - possible buffer overflow attempt\", like(mvjoin(status_codes,\",\"), \"%431%\"), \"Header too large - possible header injection\", like(mvjoin(status_codes,\",\"), \"%501%\"), \"Unknown method - method tampering\", 1==1, \"Malformed request pattern\") | eval severity=case( bad_req_count >= 100, \"high\", bad_req_count >= 30, \"medium\", 1==1, \"low\") | eval mitre=\"T1190\" | sort -bad_req_count | table _time, src_ip, host, bad_req_count, status_codes, smuggling_indicator, methods, severity, mitre",
+  "severity": "medium",
+  "category": "anomaly",
+  "mitre": ["T1190"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip", "host"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["http-smuggling", "malformed-request", "400", "413", "web", "T1190"]
+}

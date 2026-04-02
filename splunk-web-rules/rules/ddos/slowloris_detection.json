@@ -1,0 +1,19 @@
+{
+  "name": "Web - Slow HTTP Attack (Slowloris)",
+  "description": "Detects Slow HTTP attacks (Slowloris, Slow POST) where attackers send HTTP requests very slowly to exhaust server connections. Identified by many long-duration connections from a single IP with incomplete requests and high 408/499 status codes.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) (status=408 OR status=499 OR status=503) | bucket _time span=5m | stats count as slow_count, dc(uri) as unique_uris, values(status) as statuses, values(method) as methods by src_ip, host, _time | where slow_count >= 20 | eval severity=case( slow_count >= 100, \"high\", slow_count >= 50, \"medium\", 1==1, \"low\") | eval attack_type=case( like(mvjoin(statuses,\",\"), \"%408%\"), \"Slowloris / Request Timeout\", like(mvjoin(statuses,\",\"), \"%499%\"), \"Client Disconnect (Nginx slow)\", like(mvjoin(statuses,\",\"), \"%503%\"), \"Service Unavailable - possible DoS\") | eval mitre=\"T1499.001\" | table _time, src_ip, host, slow_count, unique_uris, attack_type, statuses, severity, mitre",
+  "severity": "medium",
+  "category": "ddos",
+  "mitre": ["T1499.001"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 1800,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["slowloris", "slow-http", "dos", "408", "499", "nginx", "apache"]
+}

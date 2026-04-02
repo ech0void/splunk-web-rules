@@ -1,0 +1,19 @@
+{
+  "name": "Web - Automated Scanner / Recon Tool Detected",
+  "description": "Detects automated web vulnerability scanners and recon tools by their distinctive User-Agent strings and request patterns. Covers Nikto, sqlmap, Nmap, Metasploit, Acunetix, Burp Suite, and similar tools.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval ua_lower=lower(useragent) | eval scanner_match=case( match(ua_lower, \"nikto\"), \"Nikto\", match(ua_lower, \"sqlmap\"), \"sqlmap\", match(ua_lower, \"nmap\"), \"Nmap\", match(ua_lower, \"masscan\"), \"Masscan\", match(ua_lower, \"acunetix\"), \"Acunetix\", match(ua_lower, \"nessus\"), \"Nessus\", match(ua_lower, \"openvas\"), \"OpenVAS\", match(ua_lower, \"w3af\"), \"w3af\", match(ua_lower, \"burpsuite|burp suite\"), \"Burp Suite\", match(ua_lower, \"zgrab\"), \"ZGrab\", match(ua_lower, \"dirbuster|gobuster|ffuf|wfuzz\"), \"Directory Bruteforcer\", match(ua_lower, \"python-requests|go-http-client|curl/\") AND like(uri, \"%/.%\"), \"Generic bot/script\", 1==0, null()) | where isnotnull(scanner_match) | stats count as req_count, values(scanner_match) as tools, values(uri) as sample_uris, dc(uri) as unique_uris by src_ip, host | eval severity=\"medium\" | eval mitre=\"T1595.002\" | sort -req_count | table src_ip, host, req_count, unique_uris, tools, sample_uris, severity, mitre",
+  "severity": "medium",
+  "category": "scanning",
+  "mitre": ["T1595.002"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 7200,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["scanner", "nikto", "sqlmap", "recon", "web", "T1595"]
+}

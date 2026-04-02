@@ -1,0 +1,20 @@
+{
+  "name": "Web - HTTP Flood DDoS Detection",
+  "description": "Detects HTTP flood DDoS attacks by identifying single IP addresses sending an abnormally high number of requests within a short time window. Also identifies distributed patterns with many IPs targeting the same endpoint.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | bucket _time span=1m | stats count as req_per_min, dc(uri) as unique_uris, values(method) as methods, values(status) as statuses by src_ip, host, _time | where req_per_min >= 300 | eval attack_type=case( req_per_min >= 1000, \"Volumetric HTTP Flood\", req_per_min >= 500, \"Heavy HTTP Flood\", req_per_min >= 300, \"HTTP Flood\") | eval severity=case( req_per_min >= 1000, \"critical\", req_per_min >= 500, \"high\", 1==1, \"medium\") | eval mitre=\"T1498.001\" | sort -req_per_min | table _time, src_ip, host, req_per_min, unique_uris, attack_type, methods, statuses, severity, mitre",
+  "severity": "critical",
+  "category": "ddos",
+  "mitre": ["T1498.001"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/1 * * * *",
+  "earliest_time": "-2m",
+  "latest_time": "now",
+  "threshold_req_per_min": 300,
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["ddos", "http-flood", "dos", "volumetric", "web"]
+}

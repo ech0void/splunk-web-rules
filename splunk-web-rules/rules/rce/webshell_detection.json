@@ -1,0 +1,19 @@
+{
+  "name": "Web - Webshell Upload or Access Attempt",
+  "description": "Detects webshell upload attempts and access to known webshell file patterns. Covers PHP, JSP, ASPX shells uploaded to common writable directories and access to files with shell-like naming conventions.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval uri_lower=lower(uri) | eval webshell_match=case( match(uri_lower, \"\\.(php|phtml|php5|php7|phar|shtml)$\") AND match(uri_lower, \"(shell|cmd|exec|c99|r57|b374k|wso|mini|bypass|hack|backdoor|eval|upload|file_manager)\"), \"Known webshell name\", match(uri_lower, \"/(uploads?|images?|img|media|files?|tmp|temp|cache|static|assets)/.*\\.(php|phtml|php5)\"), \"PHP in upload directory\", match(uri_lower, \"/(uploads?|images?|img|media|files?|tmp)/.*\\.(jsp|jspx|aspx|ashx|asmx)\"), \"Script in upload directory\", method=\"POST\" AND match(uri_lower, \"\\.(php|jsp|aspx)\") AND match(uri_lower, \"(upload|file|attach)\"), \"File upload to script\", 1==0, null()) | where isnotnull(webshell_match) | stats count as access_count, values(webshell_match) as match_types, values(method) as methods, values(status) as statuses by src_ip, host, uri | eval severity=\"critical\" | eval mitre=\"T1505.003\" | sort -access_count | table src_ip, host, uri, access_count, match_types, methods, statuses, severity, mitre",
+  "severity": "critical",
+  "category": "rce",
+  "mitre": ["T1505.003"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/2 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip", "uri"],
+  "suppression_period": 900,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["webshell", "file-upload", "backdoor", "php", "critical", "T1505"]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Web - SQL Injection Attempt",
+  "description": "Detects SQL injection attempts in Nginx and Apache access logs. Looks for classic SQLi patterns in URI, query strings and User-Agent fields including UNION SELECT, OR 1=1, comment sequences and blind SQLi payloads.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval uri_lower=lower(uri) | eval ua_lower=lower(useragent) | eval combined=uri_lower.\"|\".(if(isnotnull(uri_query), lower(uri_query), \"\")).\"|\".(if(isnotnull(ua_lower), ua_lower, \"\")) | eval sqli_match=case( match(combined, \"union.{0,20}select\"), \"UNION SELECT\", match(combined, \"select.{0,20}from\"), \"SELECT FROM\", match(combined, \"'\\s*(or|and)\\s*'?\\d\"), \"OR/AND bypass\", match(combined, \"(--)|(#)|(%23)|(%2d%2d)\"), \"SQL Comment\", match(combined, \"sleep\\s*\\(\"), \"Time-based blind\", match(combined, \"benchmark\\s*\\(\"), \"Benchmark blind\", match(combined, \"(xp_cmdshell|exec\\s*xp|exec\\s*sp_)\"), \"MSSQL exec\", match(combined, \"information_schema|sysobjects|syscolumns\"), \"Schema enum\", 1==0, null()) | where isnotnull(sqli_match) | stats count as hit_count, values(sqli_match) as attack_types, values(uri) as uris, values(status) as http_codes, dc(uri) as unique_uris by src_ip, host | eval severity=\"high\" | eval mitre=\"T1190\" | eval category=\"SQL Injection\" | sort -hit_count | table src_ip, host, hit_count, unique_uris, attack_types, http_codes, uris, severity, mitre",
+  "severity": "high",
+  "category": "sql_injection",
+  "mitre": ["T1190"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 1800,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["sqli", "web", "nginx", "apache", "injection", "T1190"]
+}

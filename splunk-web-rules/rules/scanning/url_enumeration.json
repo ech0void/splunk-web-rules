@@ -1,0 +1,20 @@
+{
+  "name": "Web - URL Enumeration / Content Discovery",
+  "description": "Detects automated content discovery and URL enumeration attacks. A single IP generating many 404 errors in a short period indicates tools like gobuster, ffuf, dirbuster, or wfuzz scanning for hidden files, admin panels, and backup files.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) status=404 | bucket _time span=2m | stats count as not_found_count, dc(uri) as unique_uris, values(uri) as sample_uris, values(useragent) as agents by src_ip, host, _time | where not_found_count >= 50 | eval severity=case( not_found_count >= 500, \"high\", not_found_count >= 200, \"medium\", 1==1, \"low\") | eval attack_type=\"URL/Directory Enumeration\" | eval mitre=\"T1595.003\" | eval sensitive_hit=if(match(mvjoin(sample_uris,\" \"), \"(admin|backup|\\.git|\\.env|config|wp-admin|phpmyadmin|shell|\\.bak|\\.sql)\"), \"YES\", \"NO\") | sort -not_found_count | table _time, src_ip, host, not_found_count, unique_uris, sensitive_hit, agents, attack_type, severity, mitre",
+  "severity": "medium",
+  "category": "scanning",
+  "mitre": ["T1595.003"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "threshold_404": 50,
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip", "host"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["enumeration", "content-discovery", "404", "gobuster", "ffuf", "web"]
+}

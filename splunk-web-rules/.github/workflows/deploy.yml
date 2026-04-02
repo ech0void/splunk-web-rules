@@ -1,0 +1,147 @@
+name: 🛡️ Deploy Web SIEM Rules to Splunk
+
+on:
+  push:
+    branches: [main]
+    paths: ["rules/**/*.json"]
+
+  pull_request:
+    branches: [main]
+    paths: ["rules/**/*.json"]
+
+  workflow_dispatch:
+    inputs:
+      deploy_all:
+        description: "Deploy ALL rules (not just changed)"
+        required: false
+        default: "false"
+        type: boolean
+
+jobs:
+  # ── Validate JSON ────────────────────────────────────────────────────────
+  validate:
+    name: 🔍 Validate Rule JSON
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate all rule files
+        run: |
+          python3 - <<'EOF'
+          import json, glob, sys
+
+          REQUIRED = ["name", "search", "severity", "category", "mitre", "cron"]
+          SEVERITIES = {"critical", "high", "medium", "low"}
+          errors = []
+
+          files = glob.glob("rules/**/*.json", recursive=True)
+          for fp in files:
+              try:
+                  rule = json.load(open(fp))
+                  for f in REQUIRED:
+                      if f not in rule:
+                          errors.append(f"{fp}: missing '{f}'")
+                  if rule.get("severity") not in SEVERITIES:
+                      errors.append(f"{fp}: invalid severity '{rule.get('severity')}'")
+                  if not isinstance(rule.get("mitre"), list):
+                      errors.append(f"{fp}: 'mitre' must be a list")
+              except json.JSONDecodeError as e:
+                  errors.append(f"{fp}: JSON error — {e}")
+
+          if errors:
+              print("❌ Validation failed:")
+              [print(f"  • {e}") for e in errors]
+              sys.exit(1)
+          print(f"✅ {len(files)} rule(s) passed validation!")
+          EOF
+
+  # ── Dry Run (PR) ─────────────────────────────────────────────────────────
+  dry-run:
+    name: 🧪 Dry Run
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+      - name: Dry run
+        env:
+          SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
+          SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
+          SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
+        run: python scripts/deploy_to_splunk.py --all --dry-run
+
+  # ── Deploy Changed Rules (push to main) ──────────────────────────────────
+  deploy-changed:
+    name: 🚀 Deploy Changed Rules
+    runs-on: ubuntu-latest
+    needs: validate
+    if: >
+      github.event_name == 'push' &&
+      github.ref == 'refs/heads/main' &&
+      github.event.inputs.deploy_all != 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 2 }
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+
+      - run: pip install requests
+
+      - name: Get changed rule files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only HEAD^ HEAD -- 'rules/**/*.json' | tr '\n' ' ')
+          echo "files=$FILES" >> $GITHUB_OUTPUT
+          echo "Changed: $FILES"
+
+      - name: Deploy each changed rule
+        if: steps.changed.outputs.files != ''
+        env:
+          SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
+          SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
+          SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
+        run: |
+          for F in ${{ steps.changed.outputs.files }}; do
+            echo "━━━ Deploying: $F"
+            python scripts/update_rule.py --rule "$F"
+          done
+
+      - name: Nothing changed
+        if: steps.changed.outputs.files == ''
+        run: echo "ℹ️ No rule files changed."
+
+  # ── Deploy ALL (manual trigger) ──────────────────────────────────────────
+  deploy-all:
+    name: 🚀 Deploy ALL Rules
+    runs-on: ubuntu-latest
+    needs: validate
+    if: >
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.deploy_all == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install requests
+
+      - name: Deploy all rules
+        env:
+          SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
+          SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
+          SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
+        run: python scripts/deploy_to_splunk.py --all
+
+      - name: Verify
+        env:
+          SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
+          SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
+          SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
+        run: python scripts/list_rules.py --compare

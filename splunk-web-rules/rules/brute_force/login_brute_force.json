@@ -1,0 +1,21 @@
+{
+  "name": "Web - Login Brute Force Attack",
+  "description": "Detects brute force login attacks against web applications by monitoring POST requests to common login endpoints. Triggers when a single IP sends many POST requests resulting in 401/403 responses within a short window.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) method=POST (status=401 OR status=403 OR status=200) | eval is_login_endpoint=if(match(lower(uri), \"(login|signin|auth|session|account|wp-login|admin|user|password|token)\"), 1, 0) | where is_login_endpoint=1 | bucket _time span=5m | stats count as req_count, dc(uri) as endpoints, values(status) as status_codes, values(uri) as login_uris by src_ip, host, _time | where req_count >= 20 | eval failure_indicator=if(like(mvjoin(status_codes, \",\"), \"%401%\") OR like(mvjoin(status_codes, \",\"), \"%403%\"), \"yes\", \"no\") | eval severity=\"high\" | eval mitre=\"T1110.001\" | sort -req_count | table _time, src_ip, host, req_count, endpoints, login_uris, status_codes, failure_indicator, severity, mitre",
+  "severity": "high",
+  "category": "brute_force",
+  "mitre": ["T1110.001"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "threshold": 20,
+  "time_window_minutes": 5,
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip", "host"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["brute-force", "login", "authentication", "web", "T1110"]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Web - Local/Remote File Inclusion (LFI/RFI)",
+  "description": "Detects Local File Inclusion (LFI) and Remote File Inclusion (RFI) attempts. LFI targets local system files via vulnerable parameters; RFI loads remote URLs. Both can lead to code execution or data exposure.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval full_url=uri.\"|\".(if(isnotnull(uri_query), uri_query, \"\")) | eval lfi_rfi_match=case( match(full_url, \"(file|page|path|include|require|doc|template|load|view|content|lang|dir)=.*(\\.\\./|etc/|proc/|boot/)\"), \"LFI - Path Traversal in param\", match(full_url, \"(file|page|path|include|require|template|load|view)=.*(/etc/passwd|/etc/shadow|/etc/hostname|boot\\.ini|win\\.ini)\"), \"LFI - Sensitive file\", match(full_url, \"(file|page|include|require|template|load|view)=.*(https?://|ftp://)\"), \"RFI - Remote URL inclusion\", match(full_url, \"php://|data://|expect://|zip://|phar://\"), \"PHP stream wrapper\", match(full_url, \"/proc/self/(environ|cmdline|fd)\"), \"Linux proc access\", 1==0, null()) | where isnotnull(lfi_rfi_match) | stats count as attempt_count, values(lfi_rfi_match) as attack_types, values(full_url) as payloads, values(status) as status_codes by src_ip, host | eval severity=\"high\" | eval mitre=\"T1190\" | sort -attempt_count | table src_ip, host, attempt_count, attack_types, payloads, status_codes, severity, mitre",
+  "severity": "high",
+  "category": "lfi_rfi",
+  "mitre": ["T1190"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["lfi", "rfi", "file-inclusion", "php", "web", "T1190"]
+}

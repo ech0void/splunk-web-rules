@@ -1,0 +1,20 @@
+{
+  "name": "Web - HTTP 5xx Error Spike (Application Attack Indicator)",
+  "description": "Detects spikes in HTTP 5xx server error responses which can indicate an active attack overwhelming the application, a successful exploit causing crashes, or misconfigured attack tools triggering application errors. Useful as a secondary indicator alongside other rules.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) status>=500 status<600 | bucket _time span=5m | stats count as error_count, dc(src_ip) as unique_ips, dc(uri) as unique_uris, values(status) as error_codes by host, _time | where error_count >= 50 | eval error_rate_indicator=case( error_count >= 500, \"Critical spike - possible active exploit\", error_count >= 200, \"High spike - investigate immediately\", error_count >= 50, \"Elevated errors - monitor closely\") | eval possible_cause=case( unique_ips <= 3, \"Single source - likely targeted attack\", unique_ips <= 20, \"Small group - coordinated attack possible\", unique_ips > 20, \"Distributed - DDoS or mass scan\") | eval severity=case( error_count >= 500, \"high\", error_count >= 200, \"medium\", 1==1, \"low\") | eval mitre=\"T1499\" | table _time, host, error_count, unique_ips, unique_uris, error_codes, error_rate_indicator, possible_cause, severity, mitre",
+  "severity": "medium",
+  "category": "anomaly",
+  "mitre": ["T1499"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "threshold_5xx": 50,
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["host"],
+  "suppression_period": 1800,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["5xx", "error-spike", "anomaly", "dos", "application-attack", "web"]
+}

@@ -1,0 +1,19 @@
+{
+  "name": "Web - Sensitive File and Endpoint Access",
+  "description": "Detects attempts to access sensitive files and endpoints that should never be publicly accessible. Covers .env files, git repositories, backup files, configuration files, admin panels, and developer artifacts left on production servers.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval uri_lower=lower(uri) | eval sensitive_match=case( match(uri_lower, \"(\\.env|\\.env\\.local|\\.env\\.production|\\.env\\.backup)\"), \".env file\", match(uri_lower, \"(\\.git/config|\\.git/HEAD|\\.gitignore|\\.github)\"), \"Git repository\", match(uri_lower, \"(\\.htpasswd|\\.htaccess)\"), \"Apache config\", match(uri_lower, \"(backup|dump|sql|database).*\\.(sql|gz|tar|zip|bak)\"), \"Database backup\", match(uri_lower, \"(wp-config|config\\.php|settings\\.php|database\\.php|db\\.php)\"), \"PHP config file\", match(uri_lower, \"(phpmyadmin|pma|myadmin|mysql)\"), \"phpMyAdmin\", match(uri_lower, \"\\.aws/credentials|id_rsa|\\.ssh/\"), \"Credentials/SSH key\", match(uri_lower, \"(composer\\.json|package\\.json|requirements\\.txt|Dockerfile|docker-compose)\"), \"Dev artifact\", match(uri_lower, \"(adminer|adminer\\.php|filemanager|elfinder)\"), \"Admin tool\", 1==0, null()) | where isnotnull(sensitive_match) | stats count as access_count, values(sensitive_match) as file_types, values(status) as statuses by src_ip, host, uri | eval successful_access=if(like(mvjoin(statuses,\",\"),\"%200%\") OR like(mvjoin(statuses,\",\"),\"%301%\") OR like(mvjoin(statuses,\",\"),\"%302%\"), \"YES - URGENT\", \"NO\") | eval severity=if(successful_access=\"YES - URGENT\", \"critical\", \"high\") | eval mitre=\"T1083\" | sort -access_count | table src_ip, host, uri, file_types, statuses, successful_access, severity, mitre",
+  "severity": "high",
+  "category": "scanning",
+  "mitre": ["T1083"],
+  "sourcetypes": ["nginx_access", "apache_access"],
+  "cron": "*/5 * * * *",
+  "earliest_time": "-5m",
+  "latest_time": "now",
+  "alert_actions": ["email", "webhook"],
+  "suppression_fields": ["src_ip", "uri"],
+  "suppression_period": 3600,
+  "enabled": true,
+  "version": "1.0.0",
+  "author": "SOC Team",
+  "tags": ["sensitive-files", "env", "git", "backup", "config", "web", "T1083"]
+}
