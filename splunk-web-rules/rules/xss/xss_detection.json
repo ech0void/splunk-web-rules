@@ -1,7 +1,7 @@
 {
   "name": "Web - XSS Attack Attempt",
-  "description": "Detects Cross-Site Scripting (XSS) attempts in web requests. Covers reflected XSS via URI/query parameters including script tags, event handlers, javascript: URIs, and common encoding bypass techniques.",
-  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) | eval full_request=lower(uri).\"|\".(if(isnotnull(uri_query), lower(uri_query), \"\")) | eval xss_match=case( match(full_request, \"<script\"), \"Script tag\", match(full_request, \"javascript:\"), \"JS URI\", match(full_request, \"on(load|error|click|mouseover|focus|blur|change|submit|keyup|keydown)\\s*=\"), \"Event handler\", match(full_request, \"<(iframe|object|embed|svg|img|body|link|meta)[^>]*(src|href|xlink:href|action)\\s*=\"), \"Tag injection\", match(full_request, \"(%3cscript|%3c%2fscript|%253c)\"), \"URL-encoded XSS\", match(full_request, \"expression\\s*\\(\"), \"CSS expression\", match(full_request, \"vbscript:\"), \"VBScript URI\", 1==0, null()) | where isnotnull(xss_match) | stats count as hit_count, values(xss_match) as xss_types, values(uri) as uris, values(status) as status_codes, dc(uri) as unique_endpoints by src_ip, host | eval severity=\"high\" | eval mitre=\"T1059.007\" | sort -hit_count | table src_ip, host, hit_count, unique_endpoints, xss_types, status_codes, uris, severity, mitre",
+  "description": "Detects Cross-Site Scripting (XSS) attempts in web requests with optimized search performance and enhanced evasion detection. Covers reflected XSS via URI/query parameters including script tags, event handlers, javascript: URIs, and common encoding bypass techniques.",
+  "search": "index=web (sourcetype=nginx_access OR sourcetype=apache_access) (\"<script\" OR \"javascript:\" OR \"on*=\" OR \"%3c\" OR \"eval(\" OR \"fromCharCode\") | eval full_request=lower(uri).\"|\".coalesce(lower(uri_query), \"\") | eval xss_match=case( match(full_request, \"<script\"), \"Script tag\", match(full_request, \"(?i)javascript:\"), \"JS URI\", match(full_request, \"(?i)on\\w+\\s*=\\s*['\\\"]?[^'\\\"]+['\\\"]?\"), \"Event handler\", match(full_request, \"(?i)<(iframe|object|embed|svg|img|body|link|meta|style)[^>]*(src|href|xlink:href|action|onerror|onload)\"), \"Tag injection\", match(full_request, \"(%3c|%253c|%3e|%253e|\\\\x3c|\\\\x3e)\"), \"Encoded XSS tag\", match(full_request, \"(?i)(eval|setTimeout|setInterval|Function)\\s*\\(\"), \"JS execution\", match(full_request, \"(?i)String\\.fromCharCode\"), \"JS encoding bypass\", match(full_request, \"(?i)expression\\s*\\(\"), \"CSS expression\", 1==0, null()) | where isnotnull(xss_match) | stats count as hit_count, values(xss_match) as xss_types, values(uri) as uris, values(status) as status_codes, dc(uri) as unique_endpoints by src_ip, host | eval severity=\"high\" | eval mitre=\"T1059.007\" | sort -hit_count | table src_ip, host, hit_count, unique_endpoints, xss_types, status_codes, uris, severity, mitre",
   "severity": "high",
   "category": "xss",
   "mitre": ["T1059.007"],
@@ -13,7 +13,7 @@
   "suppression_fields": ["src_ip"],
   "suppression_period": 1800,
   "enabled": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": "SOC Team",
   "tags": ["xss", "web", "injection", "javascript", "nginx", "apache"]
 }
