@@ -77,24 +77,10 @@ class SplunkClient:
             "alert.suppress.fields":  ",".join(rule.get("suppression_fields", [])),
             "alert.suppress.period":  str(rule.get("suppression_period", 3600)),
             "disabled":                "0" if rule.get("enabled", True) else "1",
+            "actions":                 ""  # Bütün alert hərəkətlərini (email, webhook və s.) birmənalı söndürürük
         }
         if create:
             p["name"] = rule["name"]
-            
-        # ── WEBHOOK-LARI TAMAMİLƏ LƏĞV EDİRİK ──
-        # Fayllarda "alert_actions" olsa belə, API-ya webhook məlumatı göndərmirik.
-        # Əgər email varsa onu saxlayırıq.
-        actions = []
-        for act in rule.get("alert_actions", []):
-            if act == "email":
-                actions.append("email")
-                p["action.email"] = "1"
-        
-        # Əgər heç bir dəstəklənən action qalmayıbsa, sahəni ümumiyyətlə boş göndəririk
-        if actions:
-            p["actions"] = ",".join(actions)
-        else:
-            p["actions"] = ""
             
         return p
 
