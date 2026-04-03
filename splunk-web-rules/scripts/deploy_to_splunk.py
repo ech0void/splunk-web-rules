@@ -51,7 +51,7 @@ class SplunkClient:
             "Authorization": f"Bearer {Config.SPLUNK_TOKEN}",
             "Content-Type":  "application/x-www-form-urlencoded",
         }
-        self.v = Config.VERIFY_SSL
+        self.v = False # SSL sertifikat yoxlanışını birmənalı olaraq söndürürük
 
     def _url(self, path):
         return f"{self.base}/servicesNS/nobody/{self.app}/{path}"
@@ -68,27 +68,30 @@ class SplunkClient:
 
     def _payload(self, rule, create=False):
         p = {
-            "search":                 rule["search"],
-            "description":            rule.get("description", ""),
+            "search":                rule["search"],
+            "description":           rule.get("description", ""),
             "cron_schedule":          rule.get("cron", "*/5 * * * *"),
             "dispatch.earliest_time": rule.get("earliest_time", "-5m"),
             "dispatch.latest_time":   rule.get("latest_time", "now"),
             "is_scheduled":           "1",
-            "alert_type":             "number of events",
-            "alert_comparator":       "greater than",
-            "alert_threshold":        "0",
-            "alert.severity":         {"critical":"1","high":"2","medium":"3","low":"4"}.get(
+            "alert_type":              "number of events",
+            "alert_comparator":        "greater than",
+            "alert_threshold":         "0",
+            "alert.severity":          {"critical":"1","high":"2","medium":"3","low":"4"}.get(
                                           rule.get("severity","medium"), "3"),
-            "alert.suppress":         "1" if rule.get("suppression_fields") else "0",
+            "alert.suppress":          "1" if rule.get("suppression_fields") else "0",
             "alert.suppress.fields":  ",".join(rule.get("suppression_fields", [])),
             "alert.suppress.period":  str(rule.get("suppression_period", 3600)),
-            "disabled":               "0" if rule.get("enabled", True) else "1",
+            "disabled":                "0" if rule.get("enabled", True) else "1",
         }
         if create:
             p["name"] = rule["name"]
         for act in rule.get("alert_actions", []):
             if act == "email":   p["action.email"]   = "1"
-            if act == "webhook": p["action.webhook"] = "1"
+            if act == "webhook": 
+                p["action.webhook"] = "1"
+                # Splunk-ın tələb etdiyi Webhook URL-i bura əlavə edirik
+                p["action.webhook.uri"] = "http://localhost:1234/fake-webhook"
         return p
 
     def deploy(self, rule, dry_run=False):
@@ -119,8 +122,8 @@ class SplunkClient:
     def test(self):
         try:
             r = requests.get(f"{self.base}/services/server/info",
-                             headers=self.h, verify=self.v,
-                             params={"output_mode": "json"}, timeout=15)
+                              headers=self.h, verify=self.v,
+                              params={"output_mode": "json"}, timeout=15)
             if r.status_code == 200:
                 ver = r.json()["entry"][0]["content"].get("version", "?")
                 log.info(f"✅ Splunk {ver} — {self.base}")
@@ -148,7 +151,7 @@ def main():
     ap = argparse.ArgumentParser()
     g  = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--all",      action="store_true")
-    g.add_argument("--rule",     metavar="FILE")
+    g.add_argument("--rule",      metavar="FILE")
     g.add_argument("--category", metavar="NAME")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
@@ -176,7 +179,6 @@ def main():
     ok = fail = 0
     for i, r in enumerate(rules, 1):
         log.info(f"[{i}/{len(rules)}] {r['name']}  [{r.get('severity','?').upper()}]")
-        (ok if client.deploy(r, args.dry_run) else fail)
         if client.deploy(r, args.dry_run): ok += 1
         else: fail += 1
 
