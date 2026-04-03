@@ -3,12 +3,6 @@
 deploy_to_splunk.py
 ====================
 Deploy web detection rules from GitHub to Splunk Enterprise via REST API.
-
-Usage:
-    python deploy_to_splunk.py --all
-    python deploy_to_splunk.py --rule rules/sql_injection/sqli_detection.json
-    python deploy_to_splunk.py --category scanning
-    python deploy_to_splunk.py --dry-run --all
 """
 
 import os, sys, json, glob, argparse, logging, requests, urllib3
@@ -51,7 +45,7 @@ class SplunkClient:
             "Authorization": f"Bearer {Config.SPLUNK_TOKEN}",
             "Content-Type":  "application/x-www-form-urlencoded",
         }
-        self.v = False # SSL sertifikat yoxlanışını birmənalı olaraq söndürürük
+        self.v = False 
 
     def _url(self, path):
         return f"{self.base}/servicesNS/nobody/{self.app}/{path}"
@@ -86,12 +80,22 @@ class SplunkClient:
         }
         if create:
             p["name"] = rule["name"]
+            
+        # ── WEBHOOK-LARI TAMAMİLƏ LƏĞV EDİRİK ──
+        # Fayllarda "alert_actions" olsa belə, API-ya webhook məlumatı göndərmirik.
+        # Əgər email varsa onu saxlayırıq.
+        actions = []
         for act in rule.get("alert_actions", []):
-            if act == "email":   p["action.email"]   = "1"
-            if act == "webhook": 
-                p["action.webhook"] = "1"
-                # Splunk-ın tələb etdiyi Webhook URL-i bura əlavə edirik
-                p["action.webhook.uri"] = "http://localhost:1234/fake-webhook"
+            if act == "email":
+                actions.append("email")
+                p["action.email"] = "1"
+        
+        # Əgər heç bir dəstəklənən action qalmayıbsa, sahəni ümumiyyətlə boş göndəririk
+        if actions:
+            p["actions"] = ",".join(actions)
+        else:
+            p["actions"] = ""
+            
         return p
 
     def deploy(self, rule, dry_run=False):
