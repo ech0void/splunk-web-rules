@@ -75,7 +75,8 @@ jobs:
           SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
           SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
           SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
-        run: python scripts/deploy_to_splunk.py --all --dry-run
+        run: |
+          python3 splunk-web-rules/scripts/deploy_to_splunk.py --all --dry-run
 
   # ── Deploy Changed Rules (push to main) ──────────────────────────────────
   deploy-changed:
@@ -111,7 +112,7 @@ jobs:
         run: |
           for F in ${{ steps.changed.outputs.files }}; do
             echo "━━━ Deploying: $F"
-            python scripts/update_rule.py --rule "$F"
+            python3 splunk-web-rules/scripts/update_rule.py --rule "$F"
           done
 
       - name: Nothing changed
@@ -137,11 +138,13 @@ jobs:
           SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
           SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
           SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
-        run: python scripts/deploy_to_splunk.py --all
+        run: |
+          python3 splunk-web-rules/scripts/deploy_to_splunk.py --all
 
       - name: Verify
         env:
           SPLUNK_HOST:  ${{ secrets.SPLUNK_HOST }}
           SPLUNK_TOKEN: ${{ secrets.SPLUNK_TOKEN }}
           SPLUNK_APP:   ${{ secrets.SPLUNK_APP }}
-        run: python scripts/list_rules.py --compare
+        run: |
+          python3 splunk-web-rules/scripts/list_rules.py --compare
